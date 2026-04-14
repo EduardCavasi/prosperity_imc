@@ -11,7 +11,9 @@ import jsonpickle
 
 POSITION_LIMITS = {
     'TOMATOES': 80,
-    'EMERALDS': 80
+    'EMERALDS': 80,
+    'INTARIAN_PEPPER_ROOT': 80,
+    'ASH_COATED_OSMIUM': 80
 }
 
 class ProductTrader:
@@ -208,9 +210,75 @@ class TomatoesTrader(ProductTrader):
         self.ask(ask_price, self.max_allowed_sell_volume)
         return self.orders
 
+class PepperTrader(ProductTrader):
+
+
+    def __init__(self, state, new_trader_data):
+        super().__init__("INTARIAN_PEPPER_ROOT", state, new_trader_data)
+
+    def get_orders(self):
+        for ask_price, ask_volume in self.sell_orders.items():
+            if self.max_allowed_buy_volume <= 0:
+                break
+            self.bid(ask_price, ask_volume)
+        return self.orders
+
+class AshTrader(ProductTrader):
+    def __init__(self, state, new_trader_data):
+        super().__init__("ASH_COATED_OSMIUM", state, new_trader_data)
+
+    def get_orders(self):
+        if self.mid_wall is not None:
+            #taking
+            for sell_price, sell_volume in self.sell_orders.items():
+                if sell_price < self.mid_wall:
+                    self.bid(sell_price, sell_volume)
+                elif sell_price <= self.mid_wall and self.initial_position < 0:
+                    volume = min(sell_volume, abs(self.initial_position))
+                    self.bid(sell_price, volume)
+
+            for buy_price, buy_volume in self.buy_orders.items():
+                if buy_price > self.mid_wall:
+                    self.ask(buy_price, buy_volume)
+                elif buy_price >= self.mid_wall and self.initial_position > 0:
+                    volume = min(buy_volume, self.initial_position)
+                    self.ask(buy_price, volume)
+
+            #making
+            bid_price = int(self.bid_wall + 1) # base case
+            ask_price = int(self.ask_wall - 1) # base case
+
+            #OVERBIDDING: overbid best bid that is still under the mid wall
+            for buy_price, buy_volume in self.buy_orders.items():
+                overbid_price = buy_price + 1
+                if buy_volume > 1 and overbid_price < self.mid_wall:
+                    bid_price = max(bid_price, overbid_price)
+                    break
+                elif buy_price < self.mid_wall:
+                    bid_price = max(bid_price, buy_price)
+                    break
+
+            # UNDERBIDDING: underbid best ask that is still over the mid wall
+            for sell_price, sell_volume in self.sell_orders.items():
+                underbid_price = sell_price - 1
+                if sell_volume > 1 and underbid_price > self.mid_wall:
+                    ask_price = min(ask_price, underbid_price)
+                    break
+                elif sell_price > self.mid_wall:
+                    ask_price = min(ask_price, sell_price)
+                    break
+
+            # POST ORDERS
+            self.bid(bid_price, self.max_allowed_buy_volume)
+            self.ask(ask_price, self.max_allowed_sell_volume)
+        return self.orders
+
+
 traders: dict[Product, ProductTrader] = {
     'EMERALDS': EmeraldsTrader,
-    'TOMATOES': TomatoesTrader
+    'TOMATOES': TomatoesTrader,
+    'INTARIAN_PEPPER_ROOT': PepperTrader,
+    'ASH_COATED_OSMIUM': AshTrader
 }
 
 class Trader:
@@ -242,7 +310,6 @@ class Trader:
                 result[product] = trader.get_orders()
                 if product == "TOMATOES" and isinstance(trader, TomatoesTrader) and trader.ema_mid is not None:
                     trader_data_obj["TOMATOES_EMA"] = trader.ema_mid
-
         # String value holding Trader state data required.
         # It will be delivered as TradingState.traderData on next execution.
         traderData = jsonpickle.dumps(trader_data_obj)
