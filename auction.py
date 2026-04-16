@@ -113,11 +113,11 @@ for ask_price in range(1, 35):
         
         # we have found the clearing price
 
-        if final_clearing_price >= final_price:
+        if final_clearing_price <= final_price:
             continue
         #keep only the orders that are included in the auction 
-        buyers_included = [(bp, bv, _type) for bp, bv, _type in new_bid_book if bp >= final_clearing_price]
-        sellers_included = [(ap, av, _type) for ap, av, _type in ask_book if ap <= final_clearing_price]
+        buyers_included = [(bp, bv, _type) for bp, bv, _type in bid_book if bp >= final_clearing_price]
+        sellers_included = [(ap, av, _type) for ap, av, _type in new_ask_book if ap <= final_clearing_price]
         #if my order not included skip
         if "mine" not in [t for _, _, t in sellers_included]:
             continue
@@ -135,5 +135,6 @@ for ask_price in range(1, 35):
             max_profit = my_profit
             best_ask_price = ask_price
             best_ask_volume = ask_volume
+            best_final_clearing_price = final_clearing_price
 
-print(best_ask_price, str(best_ask_volume) + "k", final_clearing_price, str(max_profit) + "k")
+print(best_ask_price, str(best_ask_volume) + "k", best_final_clearing_price, str(max_profit) + "k")
